@@ -1,3 +1,4 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -20,19 +21,15 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, TrendingUp, BarChart3, FileText, Moon, Sun } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { useTheme } from "@/contexts/ThemeContext";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Overview", path: "/" },
-  { icon: TrendingUp, label: "Macro", path: "/macro" },
-  { icon: BarChart3, label: "Markets", path: "/markets" },
-  { icon: FileText, label: "Reports", path: "/reports" },
+  { icon: LayoutDashboard, label: "Page 1", path: "/" },
+  { icon: Users, label: "Page 2", path: "/some-path" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -103,30 +100,6 @@ type DashboardLayoutContentProps = {
   setSidebarWidth: (width: number) => void;
 };
 
-function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme();
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={toggleTheme}
-      className="w-full justify-center gap-2"
-    >
-      {theme === 'dark' ? (
-        <>
-          <Sun className="h-4 w-4" />
-          <span>Light</span>
-        </>
-      ) : (
-        <>
-          <Moon className="h-4 w-4" />
-          <span>Dark</span>
-        </>
-      )}
-    </Button>
-  );
-}
-
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
@@ -196,7 +169,7 @@ function DashboardLayoutContent({
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-semibold tracking-tight truncate">
-                    Economic Pulse
+                    Navigation
                   </span>
                 </div>
               ) : null}
@@ -226,8 +199,7 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3 space-y-2">
-            <ThemeToggle />
+          <SidebarFooter className="p-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -275,19 +247,15 @@ function DashboardLayoutContent({
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <div className="flex items-center gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground font-semibold text-sm">
-                    {activeMenuItem?.label}
+                  <span className="tracking-tight text-foreground">
+                    {activeMenuItem?.label ?? "Menu"}
                   </span>
                 </div>
               </div>
             </div>
           </div>
         )}
-        <main className="flex-1 overflow-auto">
-          <div className="p-4 md:p-6 lg:p-8">
-            {children}
-          </div>
-        </main>
+        <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>
   );

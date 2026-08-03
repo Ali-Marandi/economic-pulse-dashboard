@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, watchlist, priceAlerts, marketDataCache, macroIndicators, InsertMarketDataCache, InsertMacroIndicator } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,89 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Watchlist queries
+export async function getUserWatchlist(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(watchlist).where(eq(watchlist.userId, userId));
+}
+
+export async function addToWatchlist(userId: number, symbol: string, instrumentType: string, name?: string) {
+  const db = await getDb();
+  if (!db) return null;
+  await db.insert(watchlist).values({ userId, symbol, instrumentType, name });
+  return { symbol, instrumentType };
+}
+
+export async function removeFromWatchlist(userId: number, symbol: string) {
+  const db = await getDb();
+  if (!db) return null;
+  await db.delete(watchlist).where(
+    and(eq(watchlist.userId, userId), eq(watchlist.symbol, symbol))
+  );
+}
+
+// Price Alerts queries
+export async function getUserAlerts(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(priceAlerts).where(eq(priceAlerts.userId, userId));
+}
+
+export async function createAlert(userId: number, symbol: string, instrumentType: string, alertType: string, targetPrice: string) {
+  const db = await getDb();
+  if (!db) return null;
+  await db.insert(priceAlerts).values({ userId, symbol, instrumentType, alertType, targetPrice });
+  return { symbol, alertType, targetPrice };
+}
+
+export async function deleteAlert(alertId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  await db.delete(priceAlerts).where(eq(priceAlerts.id, alertId));
+}
+
+// Market Data Cache queries
+export async function getMarketData(symbol: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(marketDataCache).where(eq(marketDataCache.symbol, symbol)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getAllMarketData() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(marketDataCache);
+}
+
+export async function upsertMarketData(data: InsertMarketDataCache) {
+  const db = await getDb();
+  if (!db) return null;
+  await db.insert(marketDataCache).values(data).onDuplicateKeyUpdate({
+    set: {
+      price: data.price,
+      change: data.change,
+      changePercent: data.changePercent,
+      lastUpdated: new Date(),
+    },
+  });
+}
+
+// Macro Indicators queries
+export async function getMacroIndicators() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(macroIndicators);
+}
+
+export async function upsertMacroIndicator(data: InsertMacroIndicator) {
+  const db = await getDb();
+  if (!db) return null;
+  await db.insert(macroIndicators).values(data).onDuplicateKeyUpdate({
+    set: {
+      value: data.value,
+      lastUpdated: new Date(),
+    },
+  });
+}
