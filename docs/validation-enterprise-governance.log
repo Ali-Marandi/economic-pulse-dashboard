@@ -1,0 +1,39 @@
+
+> economic-pulse-dashboard-v2@1.0.0 check
+> tsc --noEmit
+
+
+> economic-pulse-dashboard-v2@1.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/ubuntu/economic-pulse-dashboard[39m
+
+ [32m✓[39m server/auth.logout.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 22:03:11
+[2m   Duration [22m 369ms[2m (transform 84ms, setup 0ms, import 280ms, tests 3ms, environment 0ms)[22m
+
+
+> economic-pulse-dashboard-v2@1.0.0 build
+> vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2399 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                        367.92 kB │ gzip: 105.53 kB
+../dist/public/assets/index-C5dMGnLF.css         126.28 kB │ gzip:  19.63 kB
+../dist/public/assets/vendor-data-DgfkVdvU.js     92.87 kB │ gzip:  26.31 kB
+../dist/public/assets/vendor-ui-Dd7eHeKg.js      102.86 kB │ gzip:  35.58 kB
+../dist/public/assets/vendor-react-BXdlQklf.js   180.37 kB │ gzip:  56.69 kB
+../dist/public/assets/index-CnZF7y7s.js          185.31 kB │ gzip:  48.27 kB
+../dist/public/assets/vendor-charts-BZXNRYCp.js  403.67 kB │ gzip: 109.59 kB
+✓ built in 3.20s
+
+  dist/index.js  36.2kb
+
+⚡ Done in 8ms
