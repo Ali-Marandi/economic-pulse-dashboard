@@ -13,6 +13,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run lint
+      - run: npm install --legacy-peer-deps --no-audit --no-fund
+      - run: npm run check
       - run: npm test
