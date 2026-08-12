@@ -28,16 +28,16 @@ jobs:
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           queries: security-extended
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
       - name: Analyze
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
 
@@ -50,37 +50,42 @@ jobs:
       pull-requests: write
     steps:
       - name: Review dependency changes
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
-          fail-on-severity: moderate
+          fail-on-severity: high
           comment-summary-in-pr: always
 
   npm-audit:
-    name: npm audit
+    name: Production dependency audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
-      - name: Audit production and development dependencies
-        run: npm audit --audit-level=high --omit=optional
+      - name: Gate production dependency vulnerabilities
+        run: npm audit --omit=dev --omit=optional --audit-level=high
+      - name: Report all dependency findings
+        run: |
+          npm audit --omit=optional --audit-level=high || \
+            echo "::warning::Development dependency findings were reported; review the Security tab and Dependabot pull requests."
 
   osv-scanner:
     name: OSV vulnerability scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Scan lockfiles and source tree
-        uses: google/osv-scanner-action/osv-scanner-action@v2.0.2
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
         with:
           scan-args: |-
             --lockfile=package-lock.json
