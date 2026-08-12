@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { KPICard } from "@/components/KPICard";
 import { ChartWrapper } from "@/components/ChartWrapper";
+import { EnterpriseStatusBar } from "@/components/EnterpriseStatusBar";
 
 // Sample data for KPI cards
 const kpiData = [
@@ -83,6 +84,8 @@ export default function Overview() {
           {refreshing ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
+
+      <EnterpriseStatusBar />
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
