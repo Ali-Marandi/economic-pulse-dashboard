@@ -1,53 +1,167 @@
 name: Windows Release
 
+
+
 on:
+
   push:
+  
     tags:
+    
       - "v*.*.*"
+      
   workflow_dispatch:
+  
+
 
 permissions:
+
   contents: write
+  
+
+
+env:
+
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+  
+
 
 jobs:
+
   quality:
+  
     runs-on: ubuntu-latest
+    
+    env:
+    
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      
     steps:
+    
       - name: Checkout
+      
         uses: actions/checkout@v4
+        
       - name: Setup Node
+      
         uses: actions/setup-node@v4
+        
         with:
+        
           node-version: 22
+          
           cache: npm
+          
       - name: Install dependencies
+      
         run: npm install --legacy-peer-deps --no-audit --no-fund
+        
       - name: Typecheck
+      
         run: npm run check
+        
       - name: Test
+      
         run: npm test
+        
+
 
   windows:
+  
     needs: quality
+    
     runs-on: windows-latest
+    
     steps:
+    
       - name: Checkout
+      
         uses: actions/checkout@v4
+        
       - name: Setup Node
+      
         uses: actions/setup-node@v4
+        
         with:
+        
           node-version: 22
+          
           cache: npm
+          
       - name: Install dependencies
+      
         run: npm install --legacy-peer-deps --no-audit --no-fund
+        
       - name: Build Windows installers
+      
         run: npm run desktop:dist
+        
       - name: Publish GitHub Release
+      
         uses: softprops/action-gh-release@v2
+        
         with:
+        
           generate_release_notes: true
+          
           files: |
+          
             release/*.exe
+            
             release/*.blockmap
+            
         env:
+        
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
