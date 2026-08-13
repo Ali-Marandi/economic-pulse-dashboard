@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -24,6 +24,86 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+/**
+ * Enterprise tenancy and authorization foundation. Existing product data can
+ * be migrated to a default organization before tenant scoping is enforced.
+ */
+export const organizations = mysqlTable("organizations", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  name: varchar("name", { length: 160 }).notNull(),
+  status: mysqlEnum("status", ["active", "suspended", "archived"]).default("active").notNull(),
+  dataResidency: varchar("dataResidency", { length: 32 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const organizationMembers = mysqlTable("organizationMembers", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: mysqlEnum("role", ["OrgAdmin", "RiskManager", "Analyst", "Viewer", "Auditor", "StreamOperator"]).default("Viewer").notNull(),
+  status: mysqlEnum("status", ["active", "invited", "suspended", "deprovisioned"]).default("invited").notNull(),
+  idpSubject: varchar("idpSubject", { length: 255 }),
+  joinedAt: timestamp("joinedAt"),
+  deprovisionedAt: timestamp("deprovisionedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  organizationUserUnique: uniqueIndex("organization_members_org_user_unique").on(table.organizationId, table.userId),
+}));
+
+export const ssoConnections = mysqlTable("ssoConnections", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  protocol: mysqlEnum("protocol", ["oidc", "saml"]).default("oidc").notNull(),
+  issuer: varchar("issuer", { length: 512 }).notNull(),
+  clientId: varchar("clientId", { length: 255 }).notNull(),
+  jwksUri: varchar("jwksUri", { length: 512 }),
+  secretRef: varchar("secretRef", { length: 255 }),
+  scimEnabled: int("scimEnabled").default(0).notNull(),
+  enabled: int("enabled").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  organizationIssuerUnique: uniqueIndex("sso_connections_org_issuer_unique").on(table.organizationId, table.issuer),
+}));
+
+export const auditEvents = mysqlTable("auditEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  actorUserId: int("actorUserId").references(() => users.id, { onDelete: "set null" }),
+  action: varchar("action", { length: 128 }).notNull(),
+  resourceType: varchar("resourceType", { length: 96 }).notNull(),
+  resourceId: varchar("resourceId", { length: 128 }),
+  decision: mysqlEnum("decision", ["allow", "deny", "system"]).notNull(),
+  reason: varchar("reason", { length: 255 }),
+  traceId: varchar("traceId", { length: 128 }).notNull(),
+  metadata: text("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const streamTelemetryWindows = mysqlTable("streamTelemetryWindows", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 96 }).notNull(),
+  channel: varchar("channel", { length: 96 }).notNull(),
+  windowStartedAt: timestamp("windowStartedAt").notNull(),
+  windowEndedAt: timestamp("windowEndedAt").notNull(),
+  connectionAttempts: int("connectionAttempts").default(0).notNull(),
+  successfulConnections: int("successfulConnections").default(0).notNull(),
+  disconnects: int("disconnects").default(0).notNull(),
+  invalidMessages: int("invalidMessages").default(0).notNull(),
+  duplicateMessages: int("duplicateMessages").default(0).notNull(),
+  outOfOrderMessages: int("outOfOrderMessages").default(0).notNull(),
+  p95RecoveryMs: int("p95RecoveryMs"),
+  p95StalenessMs: int("p95StalenessMs"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Organization = typeof organizations.$inferSelect;
+export type OrganizationMember = typeof organizationMembers.$inferSelect;
+export type SsoConnection = typeof ssoConnections.$inferSelect;
 
 /**
  * Watchlist table for storing user's favorite instruments
