@@ -10,6 +10,7 @@ import { EnterpriseAnalysisPanel } from "@/components/EnterpriseAnalysisPanel";
 import { ForecastStudioPanel } from "@/components/ForecastStudioPanel";
 import { MarketStreamPanel } from "@/components/MarketStreamPanel";
 import { EnterpriseSecurityCenter } from "@/components/EnterpriseSecurityCenter";
+import { GovernanceOperationsPanel } from "@/components/GovernanceOperationsPanel";
 
 // Sample data for KPI cards
 const kpiData = [
@@ -98,6 +99,8 @@ export default function Overview() {
       <MarketStreamPanel />
 
       <EnterpriseSecurityCenter />
+
+      <GovernanceOperationsPanel />
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
