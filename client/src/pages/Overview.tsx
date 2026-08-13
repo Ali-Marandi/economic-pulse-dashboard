@@ -6,6 +6,9 @@ import { useState, useEffect } from "react";
 import { KPICard } from "@/components/KPICard";
 import { ChartWrapper } from "@/components/ChartWrapper";
 import { EnterpriseStatusBar } from "@/components/EnterpriseStatusBar";
+import { EnterpriseAnalysisPanel } from "@/components/EnterpriseAnalysisPanel";
+import { ForecastStudioPanel } from "@/components/ForecastStudioPanel";
+import { MarketStreamPanel } from "@/components/MarketStreamPanel";
 
 // Sample data for KPI cards
 const kpiData = [
@@ -86,6 +89,12 @@ export default function Overview() {
       </div>
 
       <EnterpriseStatusBar />
+
+      <EnterpriseAnalysisPanel />
+
+      <ForecastStudioPanel />
+
+      <MarketStreamPanel />
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
