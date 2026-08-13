@@ -84,10 +84,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Scan lockfiles and source tree
+      - name: Scan dependency manifests and source tree
         uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
         with:
           scan-args: |-
-            --lockfile=package-lock.json
-            --lockfile=pnpm-lock.yaml
+            --recursive
             ./
