@@ -15,6 +15,13 @@
       "when": 1785793655917,
       "tag": "0001_green_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786653150153,
+      "tag": "0002_fast_viper",
+      "breakpoints": true
     }
   ]
 }
