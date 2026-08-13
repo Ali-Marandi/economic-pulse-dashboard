@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -24,6 +24,192 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+/**
+ * Enterprise tenancy and authorization foundation. Existing product data can
+ * be migrated to a default organization before tenant scoping is enforced.
+ */
+export const organizations = mysqlTable("organizations", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  name: varchar("name", { length: 160 }).notNull(),
+  status: mysqlEnum("status", ["active", "suspended", "archived"]).default("active").notNull(),
+  dataResidency: varchar("dataResidency", { length: 32 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const organizationMembers = mysqlTable("organizationMembers", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: mysqlEnum("role", ["OrgAdmin", "RiskManager", "Analyst", "Viewer", "Auditor", "StreamOperator"]).default("Viewer").notNull(),
+  status: mysqlEnum("status", ["active", "invited", "suspended", "deprovisioned"]).default("invited").notNull(),
+  idpSubject: varchar("idpSubject", { length: 255 }),
+  joinedAt: timestamp("joinedAt"),
+  deprovisionedAt: timestamp("deprovisionedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  organizationUserUnique: uniqueIndex("organization_members_org_user_unique").on(table.organizationId, table.userId),
+}));
+
+export const ssoConnections = mysqlTable("ssoConnections", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  protocol: mysqlEnum("protocol", ["oidc", "saml"]).default("oidc").notNull(),
+  issuer: varchar("issuer", { length: 512 }).notNull(),
+  clientId: varchar("clientId", { length: 255 }).notNull(),
+  jwksUri: varchar("jwksUri", { length: 512 }),
+  secretRef: varchar("secretRef", { length: 255 }),
+  scimEnabled: int("scimEnabled").default(0).notNull(),
+  enabled: int("enabled").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  organizationIssuerUnique: uniqueIndex("sso_connections_org_issuer_unique").on(table.organizationId, table.issuer),
+}));
+
+export const auditEvents = mysqlTable("auditEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  actorUserId: int("actorUserId").references(() => users.id, { onDelete: "set null" }),
+  action: varchar("action", { length: 128 }).notNull(),
+  resourceType: varchar("resourceType", { length: 96 }).notNull(),
+  resourceId: varchar("resourceId", { length: 128 }),
+  decision: mysqlEnum("decision", ["allow", "deny", "system"]).notNull(),
+  reason: varchar("reason", { length: 255 }),
+  traceId: varchar("traceId", { length: 128 }).notNull(),
+  metadata: text("metadata"),
+  assuranceLevel: int("assuranceLevel"),
+  mfaMethod: varchar("mfaMethod", { length: 32 }),
+  sessionIdHash: varchar("sessionIdHash", { length: 128 }),
+  beforeHash: varchar("beforeHash", { length: 128 }),
+  afterHash: varchar("afterHash", { length: 128 }),
+  previousEventHash: varchar("previousEventHash", { length: 128 }),
+  eventHash: varchar("eventHash", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const permissions = mysqlTable("permissions", {
+  key: varchar("key", { length: 96 }).primaryKey(),
+  resource: varchar("resource", { length: 64 }).notNull(),
+  action: varchar("action", { length: 64 }).notNull(),
+  riskClass: mysqlEnum("riskClass", ["standard", "sensitive", "critical"]).default("standard").notNull(),
+  isAssignable: int("isAssignable").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const roles = mysqlTable("roles", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).references(() => organizations.id, { onDelete: "cascade" }),
+  key: varchar("key", { length: 96 }).notNull(),
+  displayName: varchar("displayName", { length: 160 }).notNull(),
+  description: text("description"),
+  isSystem: int("isSystem").default(0).notNull(),
+  status: mysqlEnum("status", ["active", "disabled"]).default("active").notNull(),
+  version: int("version").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  organizationRoleKeyUnique: uniqueIndex("roles_org_key_unique").on(table.organizationId, table.key),
+}));
+
+export const rolePermissions = mysqlTable("rolePermissions", {
+  id: int("id").autoincrement().primaryKey(),
+  roleId: varchar("roleId", { length: 36 }).notNull().references(() => roles.id, { onDelete: "cascade" }),
+  permissionKey: varchar("permissionKey", { length: 96 }).notNull().references(() => permissions.key, { onDelete: "restrict" }),
+  grantedByUserId: int("grantedByUserId").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  rolePermissionUnique: uniqueIndex("role_permissions_unique").on(table.roleId, table.permissionKey),
+}));
+
+export const memberRoles = mysqlTable("memberRoles", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationMemberId: int("organizationMemberId").notNull().references(() => organizationMembers.id, { onDelete: "cascade" }),
+  roleId: varchar("roleId", { length: 36 }).notNull().references(() => roles.id, { onDelete: "cascade" }),
+  source: mysqlEnum("source", ["manual", "scim", "jit", "break_glass"]).default("manual").notNull(),
+  grantedByUserId: int("grantedByUserId").references(() => users.id, { onDelete: "set null" }),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  memberRoleUnique: uniqueIndex("member_roles_unique").on(table.organizationMemberId, table.roleId),
+}));
+
+export const groupRoleMappings = mysqlTable("groupRoleMappings", {
+  id: int("id").autoincrement().primaryKey(),
+  ssoConnectionId: int("ssoConnectionId").notNull().references(() => ssoConnections.id, { onDelete: "cascade" }),
+  externalGroupId: varchar("externalGroupId", { length: 255 }).notNull(),
+  roleId: varchar("roleId", { length: 36 }).notNull().references(() => roles.id, { onDelete: "cascade" }),
+  enabled: int("enabled").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  groupRoleMappingUnique: uniqueIndex("group_role_mappings_unique").on(table.ssoConnectionId, table.externalGroupId),
+}));
+
+export const mfaChallenges = mysqlTable("mfaChallenges", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  operation: varchar("operation", { length: 128 }).notNull(),
+  challengeHash: varchar("challengeHash", { length: 128 }).notNull(),
+  requiredAssurance: int("requiredAssurance").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const stepUpGrants = mysqlTable("stepUpGrants", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  operation: varchar("operation", { length: 128 }).notNull(),
+  resourceId: varchar("resourceId", { length: 128 }),
+  assuranceLevel: int("assuranceLevel").notNull(),
+  method: mysqlEnum("method", ["webauthn", "idp_mfa", "totp"]).notNull(),
+  sessionIdHash: varchar("sessionIdHash", { length: 128 }).notNull(),
+  policyVersion: int("policyVersion").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const roleChangeRequests = mysqlTable("roleChangeRequests", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  roleId: varchar("roleId", { length: 36 }).references(() => roles.id, { onDelete: "set null" }),
+  requestedByUserId: int("requestedByUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  approvedByUserId: int("approvedByUserId").references(() => users.id, { onDelete: "set null" }),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "applied", "expired"]).default("pending").notNull(),
+  diffHash: varchar("diffHash", { length: 128 }).notNull(),
+  stepUpChallengeId: varchar("stepUpChallengeId", { length: 64 }).references(() => mfaChallenges.id, { onDelete: "set null" }),
+  reason: varchar("reason", { length: 255 }).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const streamTelemetryWindows = mysqlTable("streamTelemetryWindows", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 96 }).notNull(),
+  channel: varchar("channel", { length: 96 }).notNull(),
+  windowStartedAt: timestamp("windowStartedAt").notNull(),
+  windowEndedAt: timestamp("windowEndedAt").notNull(),
+  connectionAttempts: int("connectionAttempts").default(0).notNull(),
+  successfulConnections: int("successfulConnections").default(0).notNull(),
+  disconnects: int("disconnects").default(0).notNull(),
+  invalidMessages: int("invalidMessages").default(0).notNull(),
+  duplicateMessages: int("duplicateMessages").default(0).notNull(),
+  outOfOrderMessages: int("outOfOrderMessages").default(0).notNull(),
+  p95RecoveryMs: int("p95RecoveryMs"),
+  p95StalenessMs: int("p95StalenessMs"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Organization = typeof organizations.$inferSelect;
+export type OrganizationMember = typeof organizationMembers.$inferSelect;
+export type SsoConnection = typeof ssoConnections.$inferSelect;
 
 /**
  * Watchlist table for storing user's favorite instruments
