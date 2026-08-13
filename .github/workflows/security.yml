@@ -75,18 +75,30 @@ jobs:
           npm audit --omit=optional --audit-level=high || \
             echo "::warning::Development dependency findings were reported; review the Security tab and Dependabot pull requests."
 
-  osv-scanner:
-    name: OSV vulnerability scan
-    runs-on: ubuntu-latest
+  osv-pr-delta:
+    name: OSV pull request vulnerability delta
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.5.0
+    with:
+      fail-on-vuln: true
+      scan-args: |-
+        --recursive
+        ./
     permissions:
+      actions: read
       contents: read
       security-events: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Scan dependency manifests and source tree
-        uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
-        with:
-          scan-args: |-
-            --recursive
-            ./
+
+  osv-baseline-inventory:
+    name: OSV baseline vulnerability inventory
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.5.0
+    with:
+      fail-on-vuln: false
+      scan-args: |-
+        --recursive
+        ./
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
