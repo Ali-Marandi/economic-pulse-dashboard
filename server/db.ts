@@ -125,10 +125,18 @@ export async function createAlert(userId: number, symbol: string, instrumentType
   return { symbol, alertType, targetPrice };
 }
 
-export async function deleteAlert(alertId: number) {
+export async function deleteAlert(userId: number, alertId: number) {
   const db = await getDb();
   if (!db) return null;
-  await db.delete(priceAlerts).where(eq(priceAlerts.id, alertId));
+  await db.delete(priceAlerts).where(and(eq(priceAlerts.id, alertId), eq(priceAlerts.userId, userId)));
+  return { success: true };
+}
+
+export async function updateAlert(userId: number, alertId: number, updates: { alertType?: string; targetPrice?: string; isActive?: number }) {
+  const db = await getDb();
+  if (!db) return null;
+  await db.update(priceAlerts).set(updates).where(and(eq(priceAlerts.id, alertId), eq(priceAlerts.userId, userId)));
+  return { success: true };
 }
 
 // Market Data Cache queries
