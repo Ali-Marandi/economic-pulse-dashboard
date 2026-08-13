@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAuditEnvelope, evaluateStepUp, type AssuranceEvidence } from "./securityGovernance";
+import { createAuditEnvelope, evaluateStepUp, verifyAuditEnvelope, type AssuranceEvidence } from "./securityGovernance";
 
 const evidence: AssuranceEvidence = {
   subjectId: 7,
@@ -53,5 +53,7 @@ describe("audit envelopes", () => {
     expect(envelope.previousEventHash).toBe("previous-hash");
     expect(envelope.afterHash).toMatch(/^[a-f0-9]{64}$/);
     expect(envelope.eventHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(verifyAuditEnvelope(envelope)).toEqual({ valid: true, failures: [] });
+    expect(verifyAuditEnvelope({ ...envelope, action: "role.permission.deleted" }).failures).toContain("event_hash_mismatch");
   });
 });

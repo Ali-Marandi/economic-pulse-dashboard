@@ -157,9 +157,45 @@ export function createAuditEnvelope(event: AuditEvidence, previousEventHash: str
   };
   return {
     ...event,
+    before,
+    after,
     beforeHash: before ? digest(before) : null,
     afterHash: after ? digest(after) : null,
     previousEventHash,
     eventHash: digest(normalized),
   };
+}
+
+export type AuditEnvelopeVerification = {
+  valid: boolean;
+  failures: Array<"before_hash_mismatch" | "after_hash_mismatch" | "event_hash_mismatch">;
+};
+
+/**
+ * Recomputes all evidence digests from the redacted event payload. Callers may
+ * additionally compare previousEventHash with the preceding persisted event.
+ */
+export function verifyAuditEnvelope(envelope: AuditEnvelope): AuditEnvelopeVerification {
+  const before = envelope.before ? redactAuditValue(envelope.before) as Record<string, unknown> : undefined;
+  const after = envelope.after ? redactAuditValue(envelope.after) as Record<string, unknown> : undefined;
+  const normalized = {
+    organizationId: envelope.organizationId,
+    actorUserId: envelope.actorUserId,
+    action: envelope.action,
+    resourceType: envelope.resourceType,
+    resourceId: envelope.resourceId,
+    decision: envelope.decision,
+    reason: envelope.reason,
+    traceId: envelope.traceId,
+    occurredAt: envelope.occurredAt.toISOString(),
+    before,
+    after,
+    assurance: envelope.assurance,
+    previousEventHash: envelope.previousEventHash,
+  };
+  const failures: AuditEnvelopeVerification["failures"] = [];
+  if ((before ? digest(before) : null) !== envelope.beforeHash) failures.push("before_hash_mismatch");
+  if ((after ? digest(after) : null) !== envelope.afterHash) failures.push("after_hash_mismatch");
+  if (digest(normalized) !== envelope.eventHash) failures.push("event_hash_mismatch");
+  return { valid: failures.length === 0, failures };
 }
