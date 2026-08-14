@@ -90,6 +90,30 @@ export const auditEvents = mysqlTable("auditEvents", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const auditAnchors = mysqlTable("auditAnchors", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  firstSequence: int("firstSequence").notNull(),
+  lastSequence: int("lastSequence").notNull(),
+  eventCount: int("eventCount").notNull(),
+  initialEventHash: varchar("initialEventHash", { length: 128 }).notNull(),
+  terminalEventHash: varchar("terminalEventHash", { length: 128 }).notNull(),
+  previousAnchorHash: varchar("previousAnchorHash", { length: 128 }),
+  anchorVersion: int("anchorVersion").notNull(),
+  keyId: varchar("keyId", { length: 255 }).notNull(),
+  algorithm: varchar("algorithm", { length: 64 }).notNull(),
+  payloadDigest: varchar("payloadDigest", { length: 128 }).notNull(),
+  signature: text("signature").notNull(),
+  anchorHash: varchar("anchorHash", { length: 128 }).notNull(),
+  status: mysqlEnum("status", ["verified", "invalid", "pending_publish"]).default("pending_publish").notNull(),
+  anchoredAt: timestamp("anchoredAt").notNull(),
+  verifiedAt: timestamp("verifiedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  organizationLastSequenceUnique: uniqueIndex("audit_anchors_org_last_sequence_unique").on(table.organizationId, table.lastSequence),
+  organizationAnchorHashUnique: uniqueIndex("audit_anchors_org_anchor_hash_unique").on(table.organizationId, table.anchorHash),
+}));
+
 export const permissions = mysqlTable("permissions", {
   key: varchar("key", { length: 96 }).primaryKey(),
   resource: varchar("resource", { length: 64 }).notNull(),
