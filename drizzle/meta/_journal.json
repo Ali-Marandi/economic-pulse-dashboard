@@ -36,6 +36,13 @@
       "when": 1786662900000,
       "tag": "0004_audit_integrity_anchors",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1786666500000,
+      "tag": "0005_data_provenance_alerts",
+      "breakpoints": true
     }
   ]
 }
