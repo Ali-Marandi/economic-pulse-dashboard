@@ -299,3 +299,55 @@ export const macroIndicators = mysqlTable("macroIndicators", {
 
 export type MacroIndicator = typeof macroIndicators.$inferSelect;
 export type InsertMacroIndicator = typeof macroIndicators.$inferInsert;
+
+
+/**
+ * Governed macro observations retain the provenance required to reproduce a
+ * downstream alert or decision. Provider credentials never belong here.
+ */
+export const dataObservations = mysqlTable("dataObservations", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  seriesKey: varchar("seriesKey", { length: 160 }).notNull(),
+  numericValue: varchar("numericValue", { length: 64 }).notNull(),
+  unit: varchar("unit", { length: 64 }).notNull(),
+  frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly", "quarterly", "annual"]).notNull(),
+  sourceProvider: mysqlEnum("sourceProvider", ["FRED", "WorldBank", "ECB", "approved_provider"]).notNull(),
+  sourceReference: varchar("sourceReference", { length: 512 }).notNull(),
+  observedAt: timestamp("observedAt").notNull(),
+  ingestedAt: timestamp("ingestedAt").notNull(),
+  revisionState: mysqlEnum("revisionState", ["initial", "revised", "final"]).default("initial").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  organizationSeriesObservedUnique: uniqueIndex("data_observations_org_series_observed_unique").on(table.organizationId, table.seriesKey, table.observedAt),
+}));
+
+export const alertPolicies = mysqlTable("alertPolicies", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  seriesKey: varchar("seriesKey", { length: 160 }).notNull(),
+  condition: mysqlEnum("condition", ["above", "below", "stale"]).notNull(),
+  threshold: varchar("threshold", { length: 64 }),
+  staleAfterMinutes: int("staleAfterMinutes"),
+  ownerUserId: int("ownerUserId").notNull().references(() => users.id, { onDelete: "restrict" }),
+  severity: mysqlEnum("severity", ["info", "attention", "critical"]).default("attention").notNull(),
+  enabled: int("enabled").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const alertEvents = mysqlTable("alertEvents", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  organizationId: varchar("organizationId", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  alertPolicyId: varchar("alertPolicyId", { length: 64 }).notNull().references(() => alertPolicies.id, { onDelete: "cascade" }),
+  observationId: varchar("observationId", { length: 64 }).references(() => dataObservations.id, { onDelete: "set null" }),
+  state: mysqlEnum("state", ["triggered", "acknowledged", "resolved", "suppressed"]).default("triggered").notNull(),
+  evidenceHash: varchar("evidenceHash", { length: 128 }).notNull(),
+  acknowledgedByUserId: int("acknowledgedByUserId").references(() => users.id, { onDelete: "set null" }),
+  acknowledgedAt: timestamp("acknowledgedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DataObservation = typeof dataObservations.$inferSelect;
+export type AlertPolicy = typeof alertPolicies.$inferSelect;
+export type AlertEvent = typeof alertEvents.$inferSelect;
