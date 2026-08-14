@@ -29,6 +29,13 @@
       "when": 1786658599792,
       "tag": "0003_enterprise_security_governance",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1786662900000,
+      "tag": "0004_audit_integrity_anchors",
+      "breakpoints": true
     }
   ]
 }
