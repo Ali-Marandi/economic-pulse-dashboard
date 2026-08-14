@@ -134,15 +134,15 @@ export function redactAuditValue(value: unknown): unknown {
   ]));
 }
 
-function canonicalize(value: unknown): string {
+export function canonicalizeAuditValue(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
+  if (Array.isArray(value)) return `[${value.map(canonicalizeAuditValue).join(",")}]`;
   const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`).join(",")}}`;
+  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalizeAuditValue(record[key])}`).join(",")}}`;
 }
 
-function digest(value: unknown): string {
-  return createHash("sha256").update(canonicalize(value)).digest("hex");
+export function digestAuditValue(value: unknown): string {
+  return createHash("sha256").update(canonicalizeAuditValue(value)).digest("hex");
 }
 
 export function createAuditEnvelope(event: AuditEvidence, previousEventHash: string | null): AuditEnvelope {
@@ -159,10 +159,10 @@ export function createAuditEnvelope(event: AuditEvidence, previousEventHash: str
     ...event,
     before,
     after,
-    beforeHash: before ? digest(before) : null,
-    afterHash: after ? digest(after) : null,
+    beforeHash: before ? digestAuditValue(before) : null,
+    afterHash: after ? digestAuditValue(after) : null,
     previousEventHash,
-    eventHash: digest(normalized),
+    eventHash: digestAuditValue(normalized),
   };
 }
 
@@ -190,12 +190,12 @@ export function verifyAuditEnvelope(envelope: AuditEnvelope): AuditEnvelopeVerif
     occurredAt: envelope.occurredAt.toISOString(),
     before,
     after,
-    assurance: envelope.assurance,
+    ...(envelope.assurance ? { assurance: envelope.assurance } : {}),
     previousEventHash: envelope.previousEventHash,
   };
   const failures: AuditEnvelopeVerification["failures"] = [];
-  if ((before ? digest(before) : null) !== envelope.beforeHash) failures.push("before_hash_mismatch");
-  if ((after ? digest(after) : null) !== envelope.afterHash) failures.push("after_hash_mismatch");
-  if (digest(normalized) !== envelope.eventHash) failures.push("event_hash_mismatch");
+  if ((before ? digestAuditValue(before) : null) !== envelope.beforeHash) failures.push("before_hash_mismatch");
+  if ((after ? digestAuditValue(after) : null) !== envelope.afterHash) failures.push("after_hash_mismatch");
+  if (digestAuditValue(normalized) !== envelope.eventHash) failures.push("event_hash_mismatch");
   return { valid: failures.length === 0, failures };
 }
