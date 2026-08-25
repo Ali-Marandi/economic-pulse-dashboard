@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { KPICard } from "@/components/KPICard";
 import { ChartWrapper } from "@/components/ChartWrapper";
 import { EnterpriseStatusBar } from "@/components/EnterpriseStatusBar";
+import { EnterpriseAnalysisPanel } from "@/components/EnterpriseAnalysisPanel";
 
 // Sample data for KPI cards
 const kpiData = [
@@ -133,6 +134,15 @@ export default function Overview() {
             </AreaChart>
           </ResponsiveContainer>
       </ChartWrapper>
+
+      <section className="space-y-3" aria-label="Enterprise analysis workspace">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Decision workspace</p>
+          <h2 className="mt-1 text-xl font-semibold text-foreground">Explainable scenario analysis</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Run controlled macro stress tests, preserve local scenarios, and create a review-ready executive brief.</p>
+        </div>
+        <EnterpriseAnalysisPanel />
+      </section>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

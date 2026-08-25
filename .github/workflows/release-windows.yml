@@ -56,7 +56,7 @@ jobs:
           
       - name: Install dependencies
       
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
         
       - name: Typecheck
       
@@ -92,7 +92,7 @@ jobs:
           
       - name: Install dependencies
       
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
         
       - name: Build Windows installers
       
