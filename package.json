@@ -107,7 +107,7 @@
     "electron-builder": "^26.0.12",
     "esbuild": "^0.25.0",
     "pnpm": "^10.15.1",
-    "postcss": "^8.4.47",
+    "postcss": "^8.5.23",
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.19.1",
