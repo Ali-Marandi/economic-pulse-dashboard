@@ -92,7 +92,7 @@ jobs:
   osv-baseline-inventory:
     name: OSV baseline vulnerability inventory
     if: github.event_name != 'pull_request'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.5.0
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.5.1
     with:
       fail-on-vuln: false
       scan-args: |-
