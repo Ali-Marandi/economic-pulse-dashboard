@@ -78,7 +78,7 @@ jobs:
   osv-pr-delta:
     name: OSV pull request vulnerability delta
     if: github.event_name == 'pull_request'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.5.0
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.5.1
     with:
       fail-on-vuln: true
       scan-args: |-
