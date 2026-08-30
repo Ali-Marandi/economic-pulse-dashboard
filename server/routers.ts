@@ -1,12 +1,10 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { permissionProcedure, publicProcedure, router } from "./_core/trpc";
 
-import { getUserWatchlist, addToWatchlist, removeFromWatchlist, getUserAlerts, createAlert, deleteAlert, getAllMarketData, getMarketData, getMacroIndicators } from "./db";
+import { getUserWatchlist, addToWatchlist, removeFromWatchlist, getUserAlerts, createAlert, deleteAlert, updateAlert, getAllMarketData, getMarketData, getMacroIndicators } from "./db";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { priceAlerts } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -26,20 +24,18 @@ export const appRouter = router({
       if (!ctx.user) return [];
       return getUserWatchlist(ctx.user.id);
     }),
-    add: publicProcedure
+    add: permissionProcedure("watchlist.write")
       .input(z.object({
         symbol: z.string(),
         instrumentType: z.string(),
         name: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (!ctx.user) throw new Error("Not authenticated");
         return addToWatchlist(ctx.user.id, input.symbol, input.instrumentType, input.name);
       }),
-    remove: publicProcedure
+    remove: permissionProcedure("watchlist.write")
       .input(z.string())
       .mutation(async ({ ctx, input }) => {
-        if (!ctx.user) throw new Error("Not authenticated");
         return removeFromWatchlist(ctx.user.id, input);
       }),
   }),
@@ -49,7 +45,7 @@ export const appRouter = router({
       if (!ctx.user) return [];
       return getUserAlerts(ctx.user.id);
     }),
-    create: publicProcedure
+    create: permissionProcedure("alert.write")
       .input(z.object({
         symbol: z.string(),
         instrumentType: z.string(),
@@ -57,16 +53,14 @@ export const appRouter = router({
         targetPrice: z.string(),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (!ctx.user) throw new Error("Not authenticated");
         return createAlert(ctx.user.id, input.symbol, input.instrumentType, input.alertType, input.targetPrice);
       }),
-    delete: publicProcedure
+    delete: permissionProcedure("alert.write")
       .input(z.number())
       .mutation(async ({ ctx, input }) => {
-        if (!ctx.user) throw new Error("Not authenticated");
-        return deleteAlert(input);
+        return deleteAlert(ctx.user.id, input);
       }),
-    update: publicProcedure
+    update: permissionProcedure("alert.write")
       .input(z.object({
         id: z.number(),
         alertType: z.string().optional(),
@@ -74,12 +68,8 @@ export const appRouter = router({
         isActive: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (!ctx.user) throw new Error("Not authenticated");
         const { id, ...updates } = input;
-        const db = await (await import("./db")).getDb();
-        if (!db) throw new Error("Database unavailable");
-        await db.update(priceAlerts).set(updates).where(eq(priceAlerts.id, id));
-        return { success: true };
+        return updateAlert(ctx.user.id, id, updates);
       }),
   }),
 
