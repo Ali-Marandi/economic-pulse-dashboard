@@ -1,48 +1,158 @@
-const { app, BrowserWindow, shell, session } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require("electron");
 const { spawn } = require("node:child_process");
-const path = require("node:path");
+const fs = require("node:fs/promises");
 const http = require("node:http");
+const path = require("node:path");
+const { URL } = require("node:url");
 
+const APP_ID = "com.economicpulse.dashboard";
 const isDev = !app.isPackaged;
-const port = Number(process.env.ECONOMIC_PULSE_PORT || 4317);
-let serverProcess;
-let mainWindow;
+const preferredPort = Number(process.env.ECONOMIC_PULSE_PORT || (isDev ? 3000 : 4317));
+const maxExportBytes = 5 * 1024 * 1024;
 
-function waitForServer(url, timeoutMs = 30000) {
-  const started = Date.now();
-  return new Promise((resolve, reject) => {
-    const probe = () => {
-      const request = http.get(url, (response) => {
-        response.resume();
-        if (response.statusCode && response.statusCode < 500) return resolve();
-        retry();
-      });
-      request.on("error", retry);
-      request.setTimeout(1000, () => request.destroy());
-    };
-    const retry = () => {
-      if (Date.now() - started > timeoutMs) return reject(new Error(`Server did not start at ${url}`));
-      setTimeout(probe, 250);
-    };
-    probe();
+let appOrigin = null;
+let mainWindow;
+let serverProcess;
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function probeServer(url) {
+  return new Promise((resolve) => {
+    const request = http.get(url, (response) => {
+      response.resume();
+      resolve(Boolean(response.statusCode && response.statusCode < 500));
+    });
+    request.on("error", () => resolve(false));
+    request.setTimeout(1000, () => {
+      request.destroy();
+      resolve(false);
+    });
   });
+}
+
+async function waitForServer(timeoutMs = 30000) {
+  const started = Date.now();
+  const ports = isDev ? [preferredPort] : Array.from({ length: 20 }, (_, index) => preferredPort + index);
+
+  while (Date.now() - started < timeoutMs) {
+    for (const port of ports) {
+      const url = `http://127.0.0.1:${port}`;
+      if (await probeServer(url)) return url;
+    }
+    await sleep(250);
+  }
+
+  throw new Error("Economic Pulse local service did not become available in time.");
 }
 
 function startEmbeddedServer() {
   const serverEntry = path.join(__dirname, "..", "dist", "index.js");
   serverProcess = spawn(process.execPath, [serverEntry], {
     cwd: path.join(__dirname, ".."),
-    env: { ...process.env, NODE_ENV: "production", PORT: String(port) },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", NODE_ENV: "production", PORT: String(preferredPort) },
     stdio: isDev ? "inherit" : "ignore",
     windowsHide: true,
   });
   serverProcess.on("error", (error) => console.error("Embedded server error", error));
 }
 
+function isTrustedExternalUrl(target) {
+  try {
+    const parsed = new URL(target);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function safeFileName(name, fallbackExtension) {
+  const baseName = path.basename(String(name || "economic-pulse-export"));
+  const normalized = baseName.replace(/[^a-zA-Z0-9._ -]/g, "-").replace(/\.+/g, ".");
+  const withExtension = path.extname(normalized) ? normalized : `${normalized}${fallbackExtension}`;
+  return withExtension.slice(0, 120) || `economic-pulse-export${fallbackExtension}`;
+}
+
+function isValidExportPayload(payload) {
+  return payload && typeof payload === "object" && typeof payload.content === "string" && payload.content.length <= maxExportBytes;
+}
+
+function ensureMainWindowSender(event) {
+  return Boolean(mainWindow && event.sender === mainWindow.webContents);
+}
+
+function registerIpcHandlers() {
+  ipcMain.handle("economic-pulse:runtime-info", (event) => {
+    if (!ensureMainWindowSender(event)) return null;
+    return { appVersion: app.getVersion(), isPackaged, platform: process.platform };
+  });
+
+  ipcMain.handle("economic-pulse:save-text-file", async (event, payload) => {
+    if (!ensureMainWindowSender(event) || !isValidExportPayload(payload)) {
+      return { ok: false, reason: "The export request was rejected." };
+    }
+
+    const extension = typeof payload.extension === "string" && /^\.[a-z0-9]{1,8}$/i.test(payload.extension)
+      ? payload.extension.toLowerCase()
+      : ".txt";
+    const fileName = safeFileName(payload.suggestedName, extension);
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Save Economic Pulse export",
+      defaultPath: path.join(app.getPath("documents"), fileName),
+      filters: [{ name: "Export file", extensions: [extension.slice(1)] }],
+    });
+
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+    await fs.writeFile(result.filePath, payload.content, "utf8");
+    return { ok: true, filePath: result.filePath };
+  });
+
+  ipcMain.handle("economic-pulse:export-pdf", async (event, suggestedName) => {
+    if (!ensureMainWindowSender(event)) return { ok: false, reason: "The PDF request was rejected." };
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Save Economic Pulse PDF",
+      defaultPath: path.join(app.getPath("documents"), safeFileName(suggestedName, ".pdf")),
+      filters: [{ name: "PDF document", extensions: ["pdf"] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+
+    const pdf = await event.sender.printToPDF({
+      landscape: false,
+      marginsType: 1,
+      pageSize: "A4",
+      printBackground: true,
+    });
+    await fs.writeFile(result.filePath, pdf);
+    return { ok: true, filePath: result.filePath };
+  });
+}
+
+function configureSecurity() {
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+
+  if (!isDev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      if (!details.url.startsWith("http://127.0.0.1:")) return callback({ responseHeaders: details.responseHeaders });
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": [
+            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; " +
+            "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
+            "font-src 'self' data:; connect-src 'self' https:;",
+          ],
+        },
+      });
+    });
+  }
+}
+
 async function createWindow() {
   if (!isDev) startEmbeddedServer();
-  const url = `http://127.0.0.1:${port}`;
-  await waitForServer(url);
+  const localUrl = await waitForServer();
+  appOrigin = new URL(localUrl).origin;
 
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -58,35 +168,64 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webviewTag: false,
     },
   });
 
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.once("ready-to-show", () => mainWindow?.show());
+  mainWindow.webContents.on("will-navigate", (event, target) => {
+    try {
+      if (new URL(target).origin !== appOrigin) event.preventDefault();
+    } catch {
+      event.preventDefault();
+    }
+  });
+  mainWindow.webContents.on("will-attach-webview", (event) => event.preventDefault());
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
-    if (/^https?:\/\//i.test(target)) shell.openExternal(target);
+    if (isTrustedExternalUrl(target)) void shell.openExternal(target);
     return { action: "deny" };
   });
-  await mainWindow.loadURL(url);
+
+  await mainWindow.loadURL(localUrl);
 }
 
-app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  try {
-    await createWindow();
-  } catch (error) {
-    console.error(error);
-    app.quit();
-  }
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+function focusMainWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+}
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", focusMainWindow);
+
+  app.whenReady().then(async () => {
+    app.setAppUserModelId(APP_ID);
+    configureSecurity();
+    registerIpcHandlers();
+
+    try {
+      await createWindow();
+    } catch (error) {
+      console.error(error);
+      app.quit();
+    }
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+    });
   });
-});
+}
+
+function stopEmbeddedServer() {
+  if (serverProcess && !serverProcess.killed) serverProcess.kill();
+}
 
 app.on("window-all-closed", () => {
-  if (serverProcess && !serverProcess.killed) serverProcess.kill();
+  stopEmbeddedServer();
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
-  if (serverProcess && !serverProcess.killed) serverProcess.kill();
-});
+app.on("before-quit", stopEmbeddedServer);

@@ -1,6 +1,13 @@
 {
   "name": "economic-pulse-dashboard-v2",
-  "version": "1.0.0",
+  "version": "1.3.0",
+  "description": "A secure Windows desktop workspace for macroeconomic monitoring, scenario analysis, and local reporting.",
+  "author": "Economic Pulse",
+  "homepage": "https://github.com/Ali-Marandi/economic-pulse-dashboard",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ali-Marandi/economic-pulse-dashboard.git"
+  },
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -126,6 +133,7 @@
     ],
     "asar": true,
     "win": {
+      "icon": "resources/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -145,8 +153,11 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "shortcutName": "Economic Pulse"
     },
     "portable": {
       "artifactName": "Economic-Pulse-${version}-portable.exe"
